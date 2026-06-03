@@ -104,7 +104,11 @@ h1 {
   color: #ffe066;
   font-size: 1rem;
 }
-#logout-btn {
+.hud-btns {
+  display: flex;
+  gap: 4px;
+}
+.hud-btn-sm {
   background: rgba(255,255,255,0.15);
   color: rgba(255,255,255,0.8);
   border: none;
@@ -113,8 +117,9 @@ h1 {
   font-size: 0.75rem;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
 }
-#logout-btn:hover { background: rgba(255,255,255,0.28); }
+.hud-btn-sm:hover { background: rgba(255,255,255,0.28); }
 
 #game-area {
   position: relative;
@@ -451,7 +456,10 @@ h1 {
   <div id="user-info" style="display:none">
     <div class="label">플레이어</div>
     <div id="hud-nickname"></div>
-    <button id="logout-btn">로그아웃</button>
+    <div class="hud-btns">
+      <button class="hud-btn-sm" id="change-nickname-btn">✏️ 별명</button>
+      <button class="hud-btn-sm" id="logout-btn">로그아웃</button>
+    </div>
   </div>
   <button id="reset-btn">↺ 초기화</button>
 </div>
@@ -480,17 +488,20 @@ h1 {
   </div>
 </div>
 
-<!-- ── 별명 설정 화면 ──────────────────────────────────────────── -->
+<!-- ── 별명 설정/변경 화면 ────────────────────────────────────── -->
 <div id="nickname-overlay" class="screen-overlay">
   <div class="modal-card">
-    <h2>✏️ 별명 설정</h2>
+    <h2 id="nickname-overlay-title">✏️ 별명 설정</h2>
     <p>게임에서 사용할 별명을 입력하세요<br>(한글·영문·숫자, 2~15자)</p>
     <div class="nickname-form">
       <input type="text" id="nickname-input" class="nickname-input"
         placeholder="별명 입력" maxlength="15" autocomplete="off" spellcheck="false">
       <div id="nickname-error" class="nickname-error"></div>
     </div>
-    <button class="modal-btn" id="nickname-save-btn">저장하기</button>
+    <div class="btn-group">
+      <button class="modal-btn" id="nickname-save-btn">저장하기</button>
+      <button class="modal-btn-sec" id="nickname-cancel-btn" style="display:none">취소</button>
+    </div>
   </div>
 </div>
 
@@ -546,8 +557,9 @@ const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── 인증 상태 ─────────────────────────────────────────────────────────────────
-let currentUser    = null;
-let userNickname   = null;
+let currentUser         = null;
+let userNickname        = null;
+let isChangingNickname  = false;
 
 // ── 게임 상수 ─────────────────────────────────────────────────────────────────
 const COLS       = 17;
@@ -689,7 +701,7 @@ async function loadUserProfile() {
   updateHUD();
 
   if (!userNickname) {
-    showOverlay(nicknameOverlay);
+    openNicknameOverlay(false);
   } else {
     document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
     showOverlay(startOverlay);
@@ -722,6 +734,28 @@ function updateHUD() {
     document.getElementById('hud-nickname').textContent = userNickname;
   } else {
     userInfoEl.style.display = 'none';
+  }
+}
+
+// ── 별명 오버레이 열기 ────────────────────────────────────────────────────────
+function openNicknameOverlay(isChange = false) {
+  isChangingNickname = isChange;
+  document.getElementById('nickname-overlay-title').textContent =
+    isChange ? '✏️ 별명 변경' : '✏️ 별명 설정';
+  document.getElementById('nickname-cancel-btn').style.display =
+    isChange ? '' : 'none';
+  const input = document.getElementById('nickname-input');
+  input.value = isChange && userNickname ? userNickname : '';
+  document.getElementById('nickname-error').textContent = '';
+  showOverlay(nicknameOverlay);
+  setTimeout(() => input.focus(), 80);
+}
+
+function closeNicknameOverlay() {
+  if (gameStarted && !gameOver) {
+    hideAllOverlays();
+  } else {
+    showOverlay(startOverlay);
   }
 }
 
@@ -759,7 +793,7 @@ async function saveNickname() {
   userNickname = nickname;
   updateHUD();
   document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
-  showOverlay(startOverlay);
+  closeNicknameOverlay();
 }
 
 // ── 점수 & 리더보드 ───────────────────────────────────────────────────────────
@@ -820,7 +854,7 @@ function initGame() {
     document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
     showOverlay(startOverlay);
   } else if (currentUser) {
-    showOverlay(nicknameOverlay);
+    openNicknameOverlay(false);
   } else {
     showOverlay(authOverlay);
   }
@@ -1101,9 +1135,11 @@ gameArea.addEventListener('touchend', e => {
 document.getElementById('google-login-btn').addEventListener('click', signInWithGoogle);
 
 document.getElementById('nickname-save-btn').addEventListener('click', saveNickname);
+document.getElementById('nickname-cancel-btn').addEventListener('click', closeNicknameOverlay);
 document.getElementById('nickname-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') saveNickname();
 });
+document.getElementById('change-nickname-btn').addEventListener('click', () => openNicknameOverlay(true));
 
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('reset-btn').addEventListener('click', initGame);
