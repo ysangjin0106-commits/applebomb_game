@@ -104,22 +104,18 @@ h1 {
   color: #ffe066;
   font-size: 1rem;
 }
-.hud-btns {
-  display: flex;
-  gap: 4px;
-}
-.hud-btn-sm {
-  background: rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.8);
-  border: none;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 0.75rem;
+.modal-btn-sm {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.75);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
+  transition: background 0.15s, transform 0.1s;
 }
-.hud-btn-sm:hover { background: rgba(255,255,255,0.28); }
+.modal-btn-sm:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
 
 #game-area {
   position: relative;
@@ -456,10 +452,6 @@ h1 {
   <div id="user-info" style="display:none">
     <div class="label">플레이어</div>
     <div id="hud-nickname"></div>
-    <div class="hud-btns">
-      <button class="hud-btn-sm" id="change-nickname-btn">✏️ 별명</button>
-      <button class="hud-btn-sm" id="logout-btn">로그아웃</button>
-    </div>
   </div>
   <button id="reset-btn">↺ 초기화</button>
 </div>
@@ -524,6 +516,10 @@ h1 {
     <div class="btn-group">
       <button class="modal-btn" id="start-btn">게임 시작</button>
       <button class="modal-btn-sec" id="show-leaderboard-btn">🏆 순위표</button>
+    </div>
+    <div class="btn-group" style="margin-top:12px">
+      <button class="modal-btn-sm" id="change-nickname-btn">✏️ 별명 변경</button>
+      <button class="modal-btn-sm" id="logout-btn">로그아웃</button>
     </div>
   </div>
 </div>
