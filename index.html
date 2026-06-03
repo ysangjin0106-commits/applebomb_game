@@ -477,6 +477,12 @@ h1 {
       Google로 로그인
     </button>
     <p style="font-size:0.78rem;opacity:0.55;margin-top:14px;margin-bottom:0">로그인하면 점수가 기록되고 순위표를 볼 수 있어요</p>
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px">
+      <div style="flex:1;height:1px;background:rgba(255,255,255,0.18)"></div>
+      <span style="font-size:0.78rem;opacity:0.45">또는</span>
+      <div style="flex:1;height:1px;background:rgba(255,255,255,0.18)"></div>
+    </div>
+    <button class="modal-btn-sec" id="guest-btn" style="width:100%;padding:11px">👤 게스트로 플레이</button>
   </div>
 </div>
 
@@ -484,7 +490,7 @@ h1 {
 <div id="nickname-overlay" class="screen-overlay">
   <div class="modal-card">
     <h2 id="nickname-overlay-title">✏️ 별명 설정</h2>
-    <p>게임에서 사용할 별명을 입력하세요<br>(한글·영문·숫자, 2~15자)</p>
+    <p id="nickname-overlay-desc">게임에서 사용할 별명을 입력하세요<br>(한글·영문·숫자, 2~15자)</p>
     <div class="nickname-form">
       <input type="text" id="nickname-input" class="nickname-input"
         placeholder="별명 입력" maxlength="15" autocomplete="off" spellcheck="false">
@@ -502,6 +508,7 @@ h1 {
   <div class="modal-card">
     <div class="apple-icon" id="start-apple-icon"></div>
     <h2 id="welcome-msg">환영합니다!</h2>
+    <p id="guest-notice" style="display:none;font-size:0.82rem;color:#ffcc66;margin-bottom:8px;margin-top:-8px">👤 게스트 모드 — 점수가 저장되지 않아요</p>
     <p>드래그로 사과를 선택해 합이 <strong style="color:#ffe066">10</strong>이 되면 사과가 사라집니다!<br>제한 시간: <strong style="color:#7ecfff">2분</strong></p>
     <div class="legend">
       <div class="legend-item">
@@ -556,6 +563,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser         = null;
 let userNickname        = null;
 let isChangingNickname  = false;
+let isGuest             = false;
 
 // ── 게임 상수 ─────────────────────────────────────────────────────────────────
 const COLS       = 17;
@@ -720,14 +728,29 @@ async function signInWithGoogle() {
 }
 
 async function signOut() {
-  await sb.auth.signOut();
+  if (isGuest) {
+    isGuest = false;
+    userNickname = null;
+    updateHUD();
+    showOverlay(authOverlay);
+  } else {
+    await sb.auth.signOut();
+  }
+}
+
+function playAsGuest() {
+  isGuest = true;
+  currentUser = null;
+  userNickname = null;
+  openNicknameOverlay(false);
 }
 
 function updateHUD() {
   const userInfoEl = document.getElementById('user-info');
-  if (currentUser && userNickname) {
+  if ((currentUser || isGuest) && userNickname) {
     userInfoEl.style.display = 'flex';
-    document.getElementById('hud-nickname').textContent = userNickname;
+    document.getElementById('hud-nickname').textContent =
+      isGuest ? `${userNickname} (게스트)` : userNickname;
   } else {
     userInfoEl.style.display = 'none';
   }
@@ -740,6 +763,10 @@ function openNicknameOverlay(isChange = false) {
     isChange ? '✏️ 별명 변경' : '✏️ 별명 설정';
   document.getElementById('nickname-cancel-btn').style.display =
     isChange ? '' : 'none';
+  document.getElementById('nickname-overlay-desc').innerHTML =
+    isGuest && !isChange
+      ? '게임에서 사용할 별명을 입력하세요<br>(한글·영문·숫자, 2~15자)<br><span style="font-size:0.8rem;color:#ffcc66">👤 게스트 모드: 점수는 저장되지 않아요</span>'
+      : '게임에서 사용할 별명을 입력하세요<br>(한글·영문·숫자, 2~15자)';
   const input = document.getElementById('nickname-input');
   input.value = isChange && userNickname ? userNickname : '';
   document.getElementById('nickname-error').textContent = '';
@@ -768,27 +795,30 @@ async function saveNickname() {
     errEl.textContent = '한글, 영문, 숫자만 사용 가능합니다'; return;
   }
 
-  const btn = document.getElementById('nickname-save-btn');
-  btn.disabled = true;
-  btn.textContent = '저장 중...';
+  if (!isGuest) {
+    const btn = document.getElementById('nickname-save-btn');
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
 
-  const { error } = await sb
-    .from('profiles')
-    .upsert({ id: currentUser.id, nickname });
+    const { error } = await sb
+      .from('profiles')
+      .upsert({ id: currentUser.id, nickname });
 
-  btn.disabled = false;
-  btn.textContent = '저장하기';
+    btn.disabled = false;
+    btn.textContent = '저장하기';
 
-  if (error) {
-    errEl.textContent = error.code === '23505'
-      ? '이미 사용 중인 별명입니다'
-      : '오류: ' + error.message;
-    return;
+    if (error) {
+      errEl.textContent = error.code === '23505'
+        ? '이미 사용 중인 별명입니다'
+        : '오류: ' + error.message;
+      return;
+    }
   }
 
   userNickname = nickname;
   updateHUD();
   document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
+  document.getElementById('guest-notice').style.display = isGuest ? 'block' : 'none';
   closeNicknameOverlay();
 }
 
@@ -846,8 +876,9 @@ function initGame() {
   renderGrid();
   updateTimerUI();
 
-  if (currentUser && userNickname) {
+  if ((currentUser || isGuest) && userNickname) {
     document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
+    document.getElementById('guest-notice').style.display = isGuest ? 'block' : 'none';
     showOverlay(startOverlay);
   } else if (currentUser) {
     openNicknameOverlay(false);
@@ -931,13 +962,20 @@ async function endGame() {
   selBox.style.display = 'none';
   finalScoreEl.textContent = `${score}점`;
   showOverlay(endOverlay);
-  document.getElementById('end-leaderboard-content').innerHTML =
-    '<p class="loading-text">순위 저장 중...</p>';
 
-  await recordScore(score);
-  const rows = await fetchLeaderboard();
-  document.getElementById('end-leaderboard-content').innerHTML =
-    renderLeaderboardHTML(rows);
+  if (isGuest) {
+    const rows = await fetchLeaderboard();
+    document.getElementById('end-leaderboard-content').innerHTML =
+      `<p style="font-size:0.82rem;color:#ffcc66;margin-bottom:12px">👤 게스트 모드 — 점수가 저장되지 않았어요<br>로그인하면 순위표에 등록됩니다!</p>`
+      + renderLeaderboardHTML(rows);
+  } else {
+    document.getElementById('end-leaderboard-content').innerHTML =
+      '<p class="loading-text">순위 저장 중...</p>';
+    await recordScore(score);
+    const rows = await fetchLeaderboard();
+    document.getElementById('end-leaderboard-content').innerHTML =
+      renderLeaderboardHTML(rows);
+  }
 }
 
 // ── 좌표 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -1129,6 +1167,7 @@ gameArea.addEventListener('touchend', e => {
 
 // ── 버튼 이벤트 ───────────────────────────────────────────────────────────────
 document.getElementById('google-login-btn').addEventListener('click', signInWithGoogle);
+document.getElementById('guest-btn').addEventListener('click', playAsGuest);
 
 document.getElementById('nickname-save-btn').addEventListener('click', saveNickname);
 document.getElementById('nickname-cancel-btn').addEventListener('click', closeNicknameOverlay);
