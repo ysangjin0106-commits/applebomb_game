@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍎 사과 게임</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+body {
+  background-color: #2d5a27;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Segoe UI', sans-serif;
+  padding: 20px;
+}
+
+h1 {
+  color: #fff;
+  font-size: 1.8rem;
+  margin-bottom: 12px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  letter-spacing: 2px;
+}
+
+#hud {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 12px;
+  padding: 10px 24px;
+  margin-bottom: 16px;
+  color: #fff;
+  font-size: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+#hud .label { opacity: 0.8; font-size: 0.85rem; }
+
+#score-val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #ffe066;
+}
+
+#timer-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#timer-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #7ecfff;
+  min-width: 48px;
+  text-align: center;
+}
+
+#timer-bar-bg {
+  width: 160px;
+  height: 10px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+#timer-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #ff4444, #ffaa00);
+  border-radius: 5px;
+  transition: width 0.5s linear;
+}
+
+#reset-btn {
+  background: #e85d04;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+#reset-btn:hover { background: #f48226; }
+
+#user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+#hud-nickname {
+  font-weight: 700;
+  color: #ffe066;
+  font-size: 1rem;
+}
+#logout-btn {
+  background: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.8);
+  border: none;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#logout-btn:hover { background: rgba(255,255,255,0.28); }
+
+#game-area {
+  position: relative;
+  display: inline-block;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  overflow: visible;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  cursor: crosshair;
+}
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(17, 44px);
+  grid-template-rows: repeat(10, 44px);
+  gap: 3px;
+  padding: 8px;
+  background:
+    repeating-conic-gradient(
+      rgba(255,255,255,0.06) 0% 25%,
+      transparent 0% 50%
+    ) 0 0 / 24px 24px,
+    #3a7d35;
+  border-radius: 6px;
+}
+
+.cell {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.apple {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apple svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.apple span {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  line-height: 1;
+  margin-top: 5px;
+}
+
+.apple.bomb-iced span,
+.apple.bomb-lit span {
+  color: #ffe566;
+  font-size: 0.82rem;
+  text-shadow: 0 0 4px #000, 0 1px 3px rgba(0,0,0,0.9);
+  margin-top: 8px;
+}
+
+.apple.popping {
+  animation: pop 0.28s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes pop {
+  0%   { transform: scale(1);    opacity: 1; }
+  40%  { transform: scale(1.35); opacity: 0.9; }
+  100% { transform: scale(0);    opacity: 0; }
+}
+
+@keyframes ice-crack {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  20%  { transform: scale(1.15) rotate(4deg);  filter: brightness(2) saturate(0.2); }
+  40%  { transform: scale(0.92) rotate(-3deg); filter: brightness(1.5); }
+  65%  { transform: scale(1.06) rotate(2deg);  filter: brightness(1.2); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+
+.apple.cracking {
+  animation: ice-crack 0.45s ease forwards;
+}
+
+@keyframes fuse-pulse {
+  0%,100% { filter: brightness(1); }
+  50%     { filter: brightness(1.3) drop-shadow(0 0 4px #ff6600); }
+}
+
+.apple.bomb-lit {
+  animation: fuse-pulse 0.9s ease-in-out infinite;
+}
+
+#selection-box {
+  position: absolute;
+  border: 2px solid rgba(80, 150, 255, 0.9);
+  background: rgba(80, 150, 255, 0.18);
+  border-radius: 4px;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+}
+
+.explosion-effect {
+  position: absolute;
+  width: 88px;
+  height: 88px;
+  pointer-events: none;
+  z-index: 30;
+  animation: explode-anim 0.55s ease-out forwards;
+  transform-origin: center;
+}
+
+.explosion-effect svg { width: 100%; height: 100%; }
+
+@keyframes explode-anim {
+  0%   { transform: scale(0.2); opacity: 1; }
+  45%  { transform: scale(1.15); opacity: 1; }
+  75%  { transform: scale(1.0);  opacity: 0.8; }
+  100% { transform: scale(0.7);  opacity: 0; }
+}
+
+/* ── Overlays ─────────────────────────────────────────────────── */
+.screen-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.screen-overlay.show { display: flex; }
+
+.modal-card {
+  background: linear-gradient(135deg, #1a472a, #2d6a4f);
+  border-radius: 16px;
+  padding: 36px 48px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  color: #fff;
+  max-width: 440px;
+  width: 92%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-card h2 {
+  font-size: 2rem;
+  margin-bottom: 12px;
+  color: #ffe066;
+}
+
+.modal-card p {
+  font-size: 1rem;
+  margin-bottom: 20px;
+  opacity: 0.88;
+  line-height: 1.7;
+}
+
+.modal-card .big-score {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #ffe066;
+  margin-bottom: 16px;
+}
+
+.modal-btn {
+  background: #e85d04;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 40px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.modal-btn:hover  { background: #f48226; transform: translateY(-1px); }
+.modal-btn:active { transform: translateY(0); }
+.modal-btn:disabled { background: #666; cursor: not-allowed; transform: none; }
+
+.modal-btn-sec {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 14px 40px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.modal-btn-sec:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
+
+.btn-group {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Google login button */
+.google-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: box-shadow 0.15s, background 0.1s;
+  margin: 0 auto;
+}
+.google-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.4); background: #f5f5f5; }
+.google-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* Nickname input */
+.nickname-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+
+.nickname-input {
+  padding: 12px 16px;
+  font-size: 1rem;
+  border-radius: 8px;
+  border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.nickname-input::placeholder { color: rgba(255,255,255,0.45); }
+.nickname-input:focus { border-color: rgba(255,255,255,0.7); }
+
+.nickname-error {
+  color: #ff9999;
+  font-size: 0.85rem;
+  min-height: 18px;
+}
+
+/* Leaderboard table */
+.lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin: 12px 0;
+  text-align: left;
+}
+.lb-table th {
+  color: #ffe066;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.25);
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.lb-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.82);
+}
+.lb-table tr:last-child td { border-bottom: none; }
+.lb-table .is-me td { color: #ffe066; font-weight: 700; }
+.lb-table .pts { color: #7ecfff; font-weight: 700; }
+.lb-table .is-me .pts { color: #ffe066; }
+
+.loading-text {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.9rem;
+  padding: 16px 0;
+}
+
+.apple-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.legend-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<h1>🍎 사과 게임</h1>
+
+<div id="hud">
+  <div>
+    <div class="label">점수</div>
+    <div id="score-val">0</div>
+  </div>
+  <div id="timer-wrap">
+    <div class="label">남은 시간</div>
+    <div id="timer-text">2:00</div>
+    <div id="timer-bar-bg"><div id="timer-bar"></div></div>
+  </div>
+  <div id="user-info" style="display:none">
+    <div class="label">플레이어</div>
+    <div id="hud-nickname"></div>
+    <button id="logout-btn">로그아웃</button>
+  </div>
+  <button id="reset-btn">↺ 초기화</button>
+</div>
+
+<div id="game-area">
+  <div id="grid"></div>
+  <div id="selection-box"></div>
+</div>
+
+<!-- ── 로그인 화면 ─────────────────────────────────────────────── -->
+<div id="auth-overlay" class="screen-overlay">
+  <div class="modal-card">
+    <div class="apple-icon" id="auth-apple-icon"></div>
+    <h2>🍎 사과 게임</h2>
+    <p>드래그로 사과를 선택해 합이 <strong style="color:#ffe066">10</strong>이 되면 사과가 사라집니다!<br>제한 시간: <strong style="color:#7ecfff">2분</strong></p>
+    <button class="google-btn" id="google-login-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Google로 로그인
+    </button>
+    <p style="font-size:0.78rem;opacity:0.55;margin-top:14px;margin-bottom:0">로그인하면 점수가 기록되고 순위표를 볼 수 있어요</p>
+  </div>
+</div>
+
+<!-- ── 별명 설정 화면 ──────────────────────────────────────────── -->
+<div id="nickname-overlay" class="screen-overlay">
+  <div class="modal-card">
+    <h2>✏️ 별명 설정</h2>
+    <p>게임에서 사용할 별명을 입력하세요<br>(한글·영문·숫자, 2~15자)</p>
+    <div class="nickname-form">
+      <input type="text" id="nickname-input" class="nickname-input"
+        placeholder="별명 입력" maxlength="15" autocomplete="off" spellcheck="false">
+      <div id="nickname-error" class="nickname-error"></div>
+    </div>
+    <button class="modal-btn" id="nickname-save-btn">저장하기</button>
+  </div>
+</div>
+
+<!-- ── 게임 시작 화면 ─────────────────────────────────────────── -->
+<div id="start-overlay" class="screen-overlay">
+  <div class="modal-card">
+    <div class="apple-icon" id="start-apple-icon"></div>
+    <h2 id="welcome-msg">환영합니다!</h2>
+    <p>드래그로 사과를 선택해 합이 <strong style="color:#ffe066">10</strong>이 되면 사과가 사라집니다!<br>제한 시간: <strong style="color:#7ecfff">2분</strong></p>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-icon" id="legend-iced"></div>
+        <span>폭탄(빙결) → 1회 매칭 시 해당</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-icon" id="legend-lit"></div>
+        <span>폭탄(점화) → 2회 매칭 시 주변 폭발</span>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="modal-btn" id="start-btn">게임 시작</button>
+      <button class="modal-btn-sec" id="show-leaderboard-btn">🏆 순위표</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 순위표 화면 ────────────────────────────────────────────── -->
+<div id="leaderboard-overlay" class="screen-overlay">
+  <div class="modal-card" style="max-width:480px">
+    <h2>🏆 순위표</h2>
+    <div id="leaderboard-content"><p class="loading-text">로딩 중...</p></div>
+    <button class="modal-btn-sec" id="leaderboard-close-btn" style="margin-top:8px">닫기</button>
+  </div>
+</div>
+
+<!-- ── 게임 종료 화면 ─────────────────────────────────────────── -->
+<div id="end-overlay" class="screen-overlay">
+  <div class="modal-card" style="max-width:500px">
+    <h2>⏰ 게임 종료!</h2>
+    <div id="final-score-text" class="big-score">0점</div>
+    <div id="end-leaderboard-content"><p class="loading-text">순위 저장 중...</p></div>
+    <button class="modal-btn" id="modal-reset-btn" style="margin-top:20px">다시 하기</button>
+  </div>
+</div>
+
+<script>
+// ── Supabase 설정 ─────────────────────────────────────────────────────────────
+// Supabase 대시보드 → Project Settings → API에서 복사하세요
+const SUPABASE_URL      = 'https://bppiwiicegcggcefolqh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwcGl3aWljZWdjZ2djZWZvbHFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjMyMzEsImV4cCI6MjA5NTg5OTIzMX0.jn9iyJQHxPSwD5HMwGyabbwJX7vWFbKMBPxA_dIrjy0';
+
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── 인증 상태 ─────────────────────────────────────────────────────────────────
+let currentUser    = null;
+let userNickname   = null;
+
+// ── 게임 상수 ─────────────────────────────────────────────────────────────────
+const COLS       = 17;
+const ROWS       = 10;
+const TOTAL_TIME = 120;
+const BOMB_COUNT = 5;
+const EXP_SIZE   = 88;
+const CELL_SIZE  = 47;
+const GRID_PAD   = 8;
+
+// ── 게임 상태 ─────────────────────────────────────────────────────────────────
+let grid = [], bombType = [];
+let score = 0, timeLeft = TOTAL_TIME;
+let timerInterval = null, gameOver = false, gameStarted = false;
+let isDragging = false, dragStart = null, dragEnd = null;
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const gridEl             = document.getElementById('grid');
+const selBox             = document.getElementById('selection-box');
+const scoreEl            = document.getElementById('score-val');
+const timerTextEl        = document.getElementById('timer-text');
+const timerBarEl         = document.getElementById('timer-bar');
+const gameArea           = document.getElementById('game-area');
+const authOverlay        = document.getElementById('auth-overlay');
+const nicknameOverlay    = document.getElementById('nickname-overlay');
+const startOverlay       = document.getElementById('start-overlay');
+const leaderboardOverlay = document.getElementById('leaderboard-overlay');
+const endOverlay         = document.getElementById('end-overlay');
+const finalScoreEl       = document.getElementById('final-score-text');
+
+// ── SVG 팩토리 ────────────────────────────────────────────────────────────────
+function makeAppleSVG() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <path d="M50,30 C43,22 27,21 20,35 C12,52 16,74 27,84 C33,90 40,92 46,89 C48,88 49,86 50,86 C51,86 52,88 54,89 C60,92 67,90 73,84 C84,74 88,52 80,35 C73,21 57,22 50,30Z" fill="#F07878" stroke="#2D3461" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M50,28 C53,17 67,12 70,20" fill="none" stroke="#B08040" stroke-width="5" stroke-linecap="round"/>
+    <path d="M50,28 C44,13 23,16 26,31 C29,46 47,38 50,28Z" fill="#5C9040" stroke="#2D3461" stroke-width="3.5" stroke-linejoin="round"/>
+    <ellipse cx="33" cy="48" rx="9" ry="6" fill="rgba(255,255,255,0.22)" transform="rotate(-25,33,48)"/>
+  </svg>`;
+}
+
+function makeBombIcedSVG() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect x="3" y="3" width="94" height="94" rx="11" fill="#cce8f5" stroke="#82b8d4" stroke-width="3"/>
+    <polyline points="14,12 28,36 18,50" fill="none" stroke="white" stroke-width="1.5" opacity="0.75"/>
+    <polyline points="28,36 40,48" fill="none" stroke="white" stroke-width="1" opacity="0.6"/>
+    <polyline points="74,10 62,38 78,60" fill="none" stroke="white" stroke-width="1.5" opacity="0.75"/>
+    <polyline points="62,38 50,55" fill="none" stroke="white" stroke-width="1" opacity="0.6"/>
+    <path d="M50,30 C43,22 27,21 20,35 C12,52 16,74 27,84 C33,90 40,92 46,89 C48,88 49,86 50,86 C51,86 52,88 54,89 C60,92 67,90 73,84 C84,74 88,52 80,35 C73,21 57,22 50,30Z" fill="#1c1c2e" stroke="#0d0d18" stroke-width="2.5"/>
+    <path d="M50,28 C53,17 66,12 69,19" fill="none" stroke="#7a6545" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M50,28 C44,13 24,16 27,30 C30,44 47,37 50,28Z" fill="#4a7a30" stroke="#2e5018" stroke-width="2"/>
+    <ellipse cx="34" cy="47" rx="7" ry="5" fill="rgba(130,130,200,0.28)" transform="rotate(-25,34,47)"/>
+    <path d="M9,9 L26,9 L26,26" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.65"/>
+    <rect x="3" y="3" width="94" height="94" rx="11" fill="none" stroke="white" stroke-width="1.5" opacity="0.22"/>
+  </svg>`;
+}
+
+function makeBombLitSVG() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <path d="M50,30 C43,22 27,21 20,35 C12,52 16,74 27,84 C33,90 40,92 46,89 C48,88 49,86 50,86 C51,86 52,88 54,89 C60,92 67,90 73,84 C84,74 88,52 80,35 C73,21 57,22 50,30Z" fill="#111111" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+    <ellipse cx="36" cy="52" rx="13" ry="18" fill="#2a2a2a"/>
+    <ellipse cx="32" cy="46" rx="7" ry="5" fill="rgba(255,255,255,0.09)" transform="rotate(-25,32,46)"/>
+    <path d="M50,28 C44,13 23,16 26,31 C29,46 47,38 50,28Z" fill="#4CAF50" stroke="#2d7a1e" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M50,27 Q58,20 66,16 Q74,12 81,16 Q87,20 91,29" fill="none" stroke="#7a6040" stroke-width="5" stroke-linecap="round"/>
+    <path d="M50,27 Q58,21 66,17 Q74,13 81,17 Q87,21 91,29" fill="none" stroke="#a08858" stroke-width="2" stroke-linecap="round" stroke-dasharray="4,3"/>
+    <path d="M91,29 C89,22 93,17 92,12 C95,16 98,13 96,20 C99,17 100,21 98,26 C100,23 99,28 96,31 C94,32 91,31 91,29Z" fill="#FF4500"/>
+    <path d="M92,29 C91,24 93,20 93,16 C95,20 96,18 95,23 C97,20 97,24 96,27 C95,29 92,29 92,29Z" fill="#FFD700"/>
+  </svg>`;
+}
+
+function makeExplosionSVG() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="56" fill="#3d1800" opacity="0.72"/>
+    <polygon points="60,6 66,24 80,10 74,30 94,24 84,40 108,42 92,52 112,62 92,66 108,80 86,76 90,98 74,84 68,106 58,86 44,104 46,82 24,94 34,74 10,74 28,60 8,48 30,50 18,30 40,38 36,14 54,28" fill="#cc2800"/>
+    <circle cx="60" cy="60" r="36" fill="#FF5000"/>
+    <circle cx="60" cy="60" r="24" fill="#FF8C00"/>
+    <circle cx="60" cy="60" r="15" fill="#FFCC00"/>
+    <circle cx="60" cy="60" r="7" fill="#FFF8E0"/>
+    <circle cx="16" cy="22" r="3" fill="#FF4400"/>
+    <circle cx="100" cy="16" r="2.5" fill="#FF6600"/>
+    <circle cx="112" cy="72" r="2.5" fill="#FF4400"/>
+    <circle cx="10" cy="88" r="3" fill="#FF6600"/>
+    <circle cx="52" cy="4" r="2" fill="#FF3300"/>
+    <circle cx="108" cy="48" r="2" fill="#FF6600"/>
+    <circle cx="28" cy="112" r="2.5" fill="#FF4400"/>
+    <circle cx="90" cy="110" r="2" fill="#FF6600"/>
+  </svg>`;
+}
+
+// ── 범례 및 아이콘 주입 ───────────────────────────────────────────────────────
+const appleSVG = makeAppleSVG();
+document.getElementById('auth-apple-icon').innerHTML  = appleSVG;
+document.getElementById('start-apple-icon').innerHTML = appleSVG;
+document.getElementById('legend-iced').innerHTML = makeBombIcedSVG();
+document.getElementById('legend-lit').innerHTML  = makeBombLitSVG();
+
+// ── 오버레이 헬퍼 ─────────────────────────────────────────────────────────────
+const ALL_OVERLAYS = [authOverlay, nicknameOverlay, startOverlay, leaderboardOverlay, endOverlay];
+
+function showOverlay(el) {
+  ALL_OVERLAYS.forEach(o => o.classList.remove('show'));
+  el.classList.add('show');
+}
+
+function hideAllOverlays() {
+  ALL_OVERLAYS.forEach(o => o.classList.remove('show'));
+}
+
+// ── 인증 ──────────────────────────────────────────────────────────────────────
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadUserProfile();
+  } else {
+    showOverlay(authOverlay);
+  }
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && !currentUser) {
+      currentUser = session.user;
+      await loadUserProfile();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      userNickname = null;
+      updateHUD();
+      showOverlay(authOverlay);
+    }
+  });
+}
+
+async function loadUserProfile() {
+  const { data } = await sb
+    .from('profiles')
+    .select('nickname')
+    .eq('id', currentUser.id)
+    .single();
+
+  userNickname = data?.nickname ?? null;
+  updateHUD();
+
+  if (!userNickname) {
+    showOverlay(nicknameOverlay);
+  } else {
+    document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
+    showOverlay(startOverlay);
+  }
+}
+
+async function signInWithGoogle() {
+  const btn = document.getElementById('google-login-btn');
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href }
+  });
+  if (error) {
+    alert('로그인 오류: ' + error.message);
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+}
+
+function updateHUD() {
+  const userInfoEl = document.getElementById('user-info');
+  if (currentUser && userNickname) {
+    userInfoEl.style.display = 'flex';
+    document.getElementById('hud-nickname').textContent = userNickname;
+  } else {
+    userInfoEl.style.display = 'none';
+  }
+}
+
+// ── 별명 저장 ─────────────────────────────────────────────────────────────────
+async function saveNickname() {
+  const raw = document.getElementById('nickname-input').value;
+  const nickname = raw.trim();
+  const errEl = document.getElementById('nickname-error');
+  errEl.textContent = '';
+
+  if (nickname.length < 2)  { errEl.textContent = '별명은 2자 이상이어야 합니다'; return; }
+  if (nickname.length > 15) { errEl.textContent = '별명은 15자 이하여야 합니다'; return; }
+  if (!/^[가-힣a-zA-Z0-9_\- ]+$/.test(nickname)) {
+    errEl.textContent = '한글, 영문, 숫자만 사용 가능합니다'; return;
+  }
+
+  const btn = document.getElementById('nickname-save-btn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+
+  const { error } = await sb
+    .from('profiles')
+    .upsert({ id: currentUser.id, nickname });
+
+  btn.disabled = false;
+  btn.textContent = '저장하기';
+
+  if (error) {
+    errEl.textContent = error.code === '23505'
+      ? '이미 사용 중인 별명입니다'
+      : '오류: ' + error.message;
+    return;
+  }
+
+  userNickname = nickname;
+  updateHUD();
+  document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
+  showOverlay(startOverlay);
+}
+
+// ── 점수 & 리더보드 ───────────────────────────────────────────────────────────
+async function recordScore(s) {
+  if (!currentUser || !userNickname) return;
+  await sb.from('leaderboard').insert({
+    user_id:  currentUser.id,
+    nickname: userNickname,
+    score:    s
+  });
+}
+
+async function fetchLeaderboard() {
+  const { data } = await sb
+    .from('leaderboard')
+    .select('user_id, nickname, score')
+    .order('score', { ascending: false })
+    .limit(10);
+  return data ?? [];
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderLeaderboardHTML(rows) {
+  if (!rows.length) return '<p class="loading-text">아직 기록이 없어요!</p>';
+  const medals = ['🥇', '🥈', '🥉'];
+  const trs = rows.map((entry, i) => {
+    const rank = medals[i] ?? `${i + 1}위`;
+    const isMe = currentUser && entry.user_id === currentUser.id;
+    return `<tr class="${isMe ? 'is-me' : ''}">
+      <td>${rank}</td>
+      <td>${escHtml(entry.nickname)}${isMe ? ' ★' : ''}</td>
+      <td class="pts">${entry.score}점</td>
+    </tr>`;
+  }).join('');
+  return `<table class="lb-table">
+    <thead><tr><th>순위</th><th>플레이어</th><th>점수</th></tr></thead>
+    <tbody>${trs}</tbody>
+  </table>`;
+}
+
+// ── 게임 초기화 ───────────────────────────────────────────────────────────────
+function initGame() {
+  clearInterval(timerInterval);
+  gameOver = false; gameStarted = false;
+  score = 0; timeLeft = TOTAL_TIME;
+  scoreEl.textContent = '0';
+  selBox.style.display = 'none';
+  buildGrid();
+  renderGrid();
+  updateTimerUI();
+
+  if (currentUser && userNickname) {
+    document.getElementById('welcome-msg').textContent = `반갑습니다, ${userNickname}!`;
+    showOverlay(startOverlay);
+  } else if (currentUser) {
+    showOverlay(nicknameOverlay);
+  } else {
+    showOverlay(authOverlay);
+  }
+}
+
+function startGame() {
+  gameStarted = true;
+  hideAllOverlays();
+  startTimer();
+}
+
+function buildGrid() {
+  grid     = Array.from({length: ROWS}, () => Array.from({length: COLS}, () => Math.ceil(Math.random() * 9)));
+  bombType = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+  let placed = 0;
+  while (placed < BOMB_COUNT) {
+    const r = Math.floor(Math.random() * ROWS);
+    const c = Math.floor(Math.random() * COLS);
+    if (!bombType[r][c]) { bombType[r][c] = 'iced'; placed++; }
+  }
+}
+
+function renderGrid() {
+  gridEl.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (grid[r][c] !== 0) cell.appendChild(makeAppleEl(r, c));
+      gridEl.appendChild(cell);
+    }
+  }
+}
+
+function makeAppleEl(r, c) {
+  const apple = document.createElement('div');
+  const bt = bombType[r][c];
+  if (bt === 'iced') {
+    apple.className = 'apple bomb-iced';
+    apple.innerHTML = makeBombIcedSVG() + `<span>${grid[r][c]}</span>`;
+  } else if (bt === 'lit') {
+    apple.className = 'apple bomb-lit';
+    apple.innerHTML = makeBombLitSVG() + `<span>${grid[r][c]}</span>`;
+  } else {
+    apple.className = 'apple';
+    apple.innerHTML = makeAppleSVG() + `<span>${grid[r][c]}</span>`;
+  }
+  return apple;
+}
+
+// ── 타이머 ────────────────────────────────────────────────────────────────────
+function startTimer() {
+  updateTimerUI();
+  timerInterval = setInterval(() => {
+    if (--timeLeft <= 0) { clearInterval(timerInterval); endGame(); }
+    else updateTimerUI();
+  }, 1000);
+}
+
+function updateTimerUI() {
+  const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+  timerTextEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  timerBarEl.style.width  = `${(timeLeft / TOTAL_TIME) * 100}%`;
+  if (timeLeft <= 20) {
+    timerBarEl.style.background = '#ff2222';
+    timerTextEl.style.color = '#ff6666';
+  } else if (timeLeft <= 45) {
+    timerBarEl.style.background = 'linear-gradient(90deg,#ff4444,#ffcc00)';
+    timerTextEl.style.color = '#ffcc00';
+  } else {
+    timerBarEl.style.background = 'linear-gradient(90deg,#ff4444,#ffaa00)';
+    timerTextEl.style.color = '#7ecfff';
+  }
+}
+
+async function endGame() {
+  gameOver = true;
+  selBox.style.display = 'none';
+  finalScoreEl.textContent = `${score}점`;
+  showOverlay(endOverlay);
+  document.getElementById('end-leaderboard-content').innerHTML =
+    '<p class="loading-text">순위 저장 중...</p>';
+
+  await recordScore(score);
+  const rows = await fetchLeaderboard();
+  document.getElementById('end-leaderboard-content').innerHTML =
+    renderLeaderboardHTML(rows);
+}
+
+// ── 좌표 헬퍼 ─────────────────────────────────────────────────────────────────
+function getDragPoint(clientX, clientY) {
+  const rect = gameArea.getBoundingClientRect();
+  return {
+    clientX, clientY,
+    relX: Math.max(0, Math.min(rect.width,  clientX - rect.left)),
+    relY: Math.max(0, Math.min(rect.height, clientY - rect.top)),
+  };
+}
+
+function getCellFromPoint(clientX, clientY) {
+  const rect = gridEl.getBoundingClientRect();
+  return {
+    row: Math.max(0, Math.min(ROWS - 1, Math.floor((clientY - rect.top  - GRID_PAD) / CELL_SIZE))),
+    col: Math.max(0, Math.min(COLS - 1, Math.floor((clientX - rect.left - GRID_PAD) / CELL_SIZE))),
+  };
+}
+
+function getCellExplosionPos(r, c) {
+  return {
+    x: gridEl.offsetLeft + GRID_PAD + c * CELL_SIZE + 22 - EXP_SIZE / 2,
+    y: gridEl.offsetTop  + GRID_PAD + r * CELL_SIZE + 22 - EXP_SIZE / 2,
+  };
+}
+
+// ── 선택 박스 ─────────────────────────────────────────────────────────────────
+function updateSelectionBox() {
+  if (!isDragging || !dragStart || !dragEnd) { selBox.style.display = 'none'; return; }
+  const left   = Math.min(dragStart.relX, dragEnd.relX);
+  const top    = Math.min(dragStart.relY, dragEnd.relY);
+  const width  = Math.abs(dragEnd.relX - dragStart.relX);
+  const height = Math.abs(dragEnd.relY - dragStart.relY);
+  Object.assign(selBox.style, { display:'block', left:left+'px', top:top+'px', width:width+'px', height:height+'px' });
+}
+
+function calcSum(r1, r2, c1, c2) {
+  let s = 0;
+  for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) s += grid[r][c];
+  return s;
+}
+
+function resolveSelection() {
+  if (!dragStart || !dragEnd) return;
+  const a = getCellFromPoint(dragStart.clientX, dragStart.clientY);
+  const b = getCellFromPoint(dragEnd.clientX,   dragEnd.clientY);
+  const r1 = Math.min(a.row, b.row), r2 = Math.max(a.row, b.row);
+  const c1 = Math.min(a.col, b.col), c2 = Math.max(a.col, b.col);
+  if (calcSum(r1, r2, c1, c2) === 10) popApples(r1, r2, c1, c2);
+}
+
+// ── 사과 제거 ─────────────────────────────────────────────────────────────────
+function popApples(r1, r2, c1, c2) {
+  const normalPop  = [];
+  const icedThaw   = [];
+  const litExplode = [];
+
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      if (grid[r][c] === 0) continue;
+      const bt = bombType[r][c];
+      if      (bt === 'iced') icedThaw.push({r, c});
+      else if (bt === 'lit')  litExplode.push({r, c});
+      else                    normalPop.push({r, c});
+    }
+  }
+
+  let gained = 0;
+
+  normalPop.forEach(({r, c}) => { grid[r][c] = 0; gained++; animatePop(r, c); });
+
+  icedThaw.forEach(({r, c}) => {
+    bombType[r][c] = 'lit';
+    const cell = gridEl.children[r * COLS + c];
+    const old  = cell.querySelector('.apple');
+    const next = makeAppleEl(r, c);
+    next.classList.remove('bomb-lit');
+    next.classList.add('bomb-lit', 'cracking');
+    next.addEventListener('animationend', () => {
+      next.classList.remove('cracking');
+      next.classList.add('bomb-lit');
+    }, {once: true});
+    if (old) old.remove();
+    cell.appendChild(next);
+  });
+
+  const handled = new Set([...normalPop, ...litExplode].map(({r, c}) => `${r},${c}`));
+
+  litExplode.forEach(({r, c}) => {
+    grid[r][c] = 0; bombType[r][c] = null;
+    gained++;
+    showExplosion(r, c);
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+        if (grid[nr][nc] === 0 || handled.has(`${nr},${nc}`)) continue;
+        handled.add(`${nr},${nc}`);
+        grid[nr][nc] = 0; bombType[nr][nc] = null;
+        gained++;
+        showExplosion(nr, nc);
+      }
+    }
+  });
+
+  if (gained > 0) { score += gained; scoreEl.textContent = score; }
+}
+
+function animatePop(r, c) {
+  const apple = gridEl.children[r * COLS + c].querySelector('.apple');
+  if (!apple || apple.classList.contains('popping')) return;
+  apple.className = 'apple popping';
+  apple.addEventListener('animationend', () => apple.remove(), {once: true});
+}
+
+function showExplosion(r, c) {
+  const apple = gridEl.children[r * COLS + c].querySelector('.apple');
+  if (apple && !apple.classList.contains('popping')) {
+    apple.className = 'apple popping';
+    apple.addEventListener('animationend', () => apple.remove(), {once: true});
+  }
+  const pos = getCellExplosionPos(r, c);
+  const exp = document.createElement('div');
+  exp.className = 'explosion-effect';
+  exp.style.left = pos.x + 'px';
+  exp.style.top  = pos.y + 'px';
+  exp.innerHTML  = makeExplosionSVG();
+  gameArea.appendChild(exp);
+  exp.addEventListener('animationend', () => exp.remove(), {once: true});
+}
+
+// ── 마우스 이벤트 ─────────────────────────────────────────────────────────────
+gameArea.addEventListener('mousedown', e => {
+  if (e.button !== 0 || gameOver || !gameStarted) return;
+  isDragging = true;
+  dragStart = getDragPoint(e.clientX, e.clientY);
+  dragEnd   = {...dragStart};
+  updateSelectionBox();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isDragging || gameOver) return;
+  dragEnd = getDragPoint(e.clientX, e.clientY);
+  updateSelectionBox();
+});
+
+document.addEventListener('mouseup', e => {
+  if (!isDragging || gameOver) return;
+  isDragging = false;
+  resolveSelection();
+  selBox.style.display = 'none';
+  dragStart = dragEnd = null;
+});
+
+// ── 터치 이벤트 ───────────────────────────────────────────────────────────────
+function getTouchCoords(e) {
+  const t = e.touches[0] || e.changedTouches[0];
+  return {x: t.clientX, y: t.clientY};
+}
+
+gameArea.addEventListener('touchstart', e => {
+  if (gameOver || !gameStarted) return;
+  e.preventDefault();
+  const {x, y} = getTouchCoords(e);
+  isDragging = true;
+  dragStart = getDragPoint(x, y);
+  dragEnd   = {...dragStart};
+  updateSelectionBox();
+}, {passive: false});
+
+gameArea.addEventListener('touchmove', e => {
+  if (!isDragging || gameOver) return;
+  e.preventDefault();
+  const {x, y} = getTouchCoords(e);
+  dragEnd = getDragPoint(x, y);
+  updateSelectionBox();
+}, {passive: false});
+
+gameArea.addEventListener('touchend', e => {
+  if (!isDragging || gameOver) return;
+  e.preventDefault();
+  isDragging = false;
+  resolveSelection();
+  selBox.style.display = 'none';
+  dragStart = dragEnd = null;
+}, {passive: false});
+
+// ── 버튼 이벤트 ───────────────────────────────────────────────────────────────
+document.getElementById('google-login-btn').addEventListener('click', signInWithGoogle);
+
+document.getElementById('nickname-save-btn').addEventListener('click', saveNickname);
+document.getElementById('nickname-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveNickname();
+});
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('reset-btn').addEventListener('click', initGame);
+document.getElementById('modal-reset-btn').addEventListener('click', initGame);
+document.getElementById('logout-btn').addEventListener('click', signOut);
+
+document.getElementById('show-leaderboard-btn').addEventListener('click', async () => {
+  showOverlay(leaderboardOverlay);
+  document.getElementById('leaderboard-content').innerHTML = '<p class="loading-text">로딩 중...</p>';
+  const rows = await fetchLeaderboard();
+  document.getElementById('leaderboard-content').innerHTML = renderLeaderboardHTML(rows);
+});
+
+document.getElementById('leaderboard-close-btn').addEventListener('click', () => {
+  showOverlay(startOverlay);
+});
+
+// ── 부팅 ─────────────────────────────────────────────────────────────────────
+buildGrid();
+renderGrid();
+updateTimerUI();
+initAuth();
+</script>
+</body>
+</html>
